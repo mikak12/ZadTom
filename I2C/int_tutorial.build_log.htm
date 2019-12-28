@@ -1,0 +1,76 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Tool Versions:</h2>
+IDE-Version: µVision V5.26.2.0
+Copyright (C) 2018 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: Dominik Mikak, AGH, LIC=YA3Y8-3J2HT-DKUBN-YGNQR-SB4KA-GQEDB
+ 
+Tool Versions:
+Toolchain:       MDK-ARM Plus  Version: 5.26.2.0
+Toolchain Path:  E:\instalki\KeilInstall\ARM\ARMCC\Bin
+C Compiler:      Armcc.exe V5.06 update 6 (build 750)
+Assembler:       Armasm.exe V5.06 update 6 (build 750)
+Linker/Locator:  ArmLink.exe V5.06 update 6 (build 750)
+Library Manager: ArmAr.exe V5.06 update 6 (build 750)
+Hex Converter:   FromElf.exe V5.06 update 6 (build 750)
+CPU DLL:         SARMCM3.DLL V5.26.2.0
+Dialog DLL:      DARMCM1.DLL V1.19.1.0
+Target DLL:      CMSIS_AGDI.dll V1.30.6.0
+Dialog DLL:      TARMCM1.DLL V1.14.0.0
+ 
+<h2>Project:</h2>
+F:\STUDIA\semestr V\SMP2\Projekt\Akcelerometr\2014_10_26_int_tutorial\int_tutorial.uvprojx
+Project File Date:  12/17/2019
+
+<h2>Output:</h2>
+*** Using Compiler 'V5.06 update 6 (build 750)', folder: 'E:\instalki\KeilInstall\ARM\ARMCC\Bin'
+Build target 'IntApp'
+compiling I2C.c...
+I2C.h(63): warning:  #1-D: last line of file ends without a newline
+  #endif
+I2C.c(52): warning:  #177-D: variable "baud_rate"  was declared but never referenced
+  	uint32_t baud_rate;
+I2C.c(53): warning:  #177-D: variable "divisor"  was declared but never referenced
+  	uint32_t divisor;
+I2C.c(197): warning:  #9-D: nested comment is not allowed
+  /*  
+I2C.c(252): warning:  #1-D: last line of file ends without a newline
+  }
+I2C.c: 5 warnings, 0 errors
+linking...
+Program Size: Code=2280 RO-data=224 RW-data=8 ZI-data=352  
+".\int_tutorial.axf" - 0 Error(s), 5 Warning(s).
+
+<h2>Software Packages used:</h2>
+
+Package Vendor: ARM
+                http://www.keil.com/pack/ARM.CMSIS.4.1.1.pack
+                ARM.CMSIS.4.1.1
+                CMSIS (Cortex Microcontroller Software Interface Standard)
+   * Component: CORE Version: 3.30.0
+
+Package Vendor: Keil
+                http://www.keil.com/pack/Keil.Kinetis_KLxx_DFP.1.3.0.pack
+                Keil.Kinetis_KLxx_DFP.1.3.0
+                Freescale Kinetis KLxx Series Device Support and Examples
+   * Component: Startup Version: 1.0.0
+
+<h2>Collection of Component include folders:</h2>
+  .\RTE\_IntApp
+  E:\instalki\KeilPack\ARM\CMSIS\4.1.1\CMSIS\Include
+  E:\instalki\KeilPack\Keil\Kinetis_KLxx_DFP\1.3.0\Device\Include
+
+<h2>Collection of Component Files used:</h2>
+
+   * Component: ARM::CMSIS:CORE:3.30.0
+      Source file:   CMSIS\UserCodeTemplates\ARM\ITM_Retarget.c
+
+   * Component: Keil::Device:Startup:1.0.0
+      Source file:   Device\Source\system_MKL46Z4.c
+      Source file:   Device\Source\ARM\startup_MKL46Z4.s
+Build Time Elapsed:  00:00:01
+</pre>
+</body>
+</html>
