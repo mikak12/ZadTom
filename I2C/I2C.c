@@ -1,252 +1,282 @@
 #include "I2C.h"
+char znaki[] = {'x','A', 'B', 'C', 'D'}; 
+char znakiASCII[] = {120, 65, 66, 67, 68};
 
-#define addressACCELEROMETER  0x1D  //read -> 0x3A       write -> 0x3B
-#define addressRegisters  0x00 // do 0x06 to sa LSB I MSB dla osi XYZ
-
-#define bus_clock 8000000    
-
-
-#define MWSR 0x00 /* Master write */    
-#define MRSW 0x01 /* Master read */ 
-
-void I2C_EnableACK(){ I2C1->C1 &= ~I2C_C1_TXAK_MASK; }
-void I2C_DisableACK_NACK() { I2C1->C1 |= I2C_C1_TXAK_MASK; }
-void I2C_Start() { I2C0->C1 |= I2C_C1_MST_MASK;  }
-void I2C_TRAN() { I2C0->C1 |= I2C_C1_TX_MASK;}
-void I2C_REC() {I2C0->C1 &= ~I2C_C1_TX_MASK; }
-void I2C_RepeatedStart() {I2C0->C1 |= I2C_C1_RSTA_MASK; }
-void I2C_Stop() { I2C0->C1 &= ~I2C_C1_MST_MASK; }
-
-void Busy_ACK() {while(I2C0->S & 0x01); }
-void Tran_Comp() { while(!(I2C0->S & 0x80)); }
-void I2C_wait() {while((I2C0->S & I2C_S_IICIF_MASK)==0){} \
-												I2C0->S |= I2C_S_IICIF_MASK; }
-void NACK() {I2C0->C1 |= I2C_C1_TXAK_MASK ;}
-void ACK() {I2C0->C1 &= ~I2C_C1_TXAK_MASK;}
+void delay(void)
+	{
+		uint32_t i;
+		for(i =1;i<100;i++)
+			{}
+	}
 
 
+void I2C_Init(void)
+{	
+	SIM->SCGC5 |= SIM_SCGC5_PORTE_MASK;
+	SIM->SCGC4 |= SIM_SCGC4_I2C0_MASK ;     	//zegar na I2C
 
-void I2C_EnterRxMode()
-{
-	I2C1->C1 &= ~I2C_C1_TX_MASK;		//RECEIVE MODE
-  I2C1->C1 |= I2C_C1_TXAK_MASK;   //TRANSMIT ACKNOWLEDGE ENABLE
-}	
+	// Setting Pins corresponding to I2C0 clock and Data
+	PORTE->PCR[24]|= PORT_PCR_MUX(5);
+	PORTE->PCR[25]|= PORT_PCR_MUX(5);
 
-void I2C_write_byte(uint32_t data)
-{
-	I2C1->D = data;
+	// Enabling pullup resistor I2C0 Data
+	PORTE->PCR[24]|= PORT_PCR_PS_MASK |PORT_PCR_PE_MASK;
+	// Enabling pullup resistor I2C0 Data
+	PORTE->PCR[25]|= PORT_PCR_PS_MASK |PORT_PCR_PE_MASK;
+	
+	// Setting MULT to 2h
+	I2C0->F|=I2C_F_MULT(2);
+	I2C0->F|=I2C_F_ICR(0x00);
+	
+	// Enable the Module operation
+	I2C0->C1|=I2C_C1_IICEN_MASK;
 }
 
-char I2C_read_byte()
+void Status_ACK_NACK(void)
 {
-	return I2C1->D;
-}
+	unsigned char AdressSlave= 0x1D;         // adress do wysylki 
+	uint16_t adresssslave= 0x1D;
+	char AdressSlave2[]= {0,'x',1,'D'};   //ten sam adres rozbity na znaki
+  int a, j, k;	  
+
+	uint16_t i;
+  unsigned char NACK[] = {78, 65, 67, 75};   //zakodowane N A C K  w ascii
+	unsigned char ACK[] = {65, 67, 75};	       //zakodowane A C K w ascii
+
+//	for(a=0; a<strlen(AdressSlave2); a++)    // konwersja adresu do wysylki nei wiem czemu nei dziala jesli jest A to konweruje na 65 i wysyla 65 dzieki czemu widac w ANSII w konsoli
+//	{
+//		for(j=0; j<strlen(znaki); j++)
+//		{
+//			if(AdressSlave2[a] == znaki[j])
+//			{
+//				AdressSlave2[a]=znakiASCII[j];
+//			}
+//		}
+//	}
+//	
+
+	for(k=0; k<strlen(AdressSlave2); k++)   // wysylka adresu
+	{
+		uint8_t p = AdressSlave2[k] - '0';
+		UART0_Transmit(p);
+	}
+	
+	
+	
+	UART0_Transmit(32);                   //spacja dla czytelnosci
+	
+	if(I2C_AddressRead(AdressSlave) == 255)   //warunek czy odpowiada czy nie NACK - nie  ACK - tak
+	{
+		for(i=0; i<4; i++)
+			{
+				UART0_Transmit(NACK[i]);
+			}
+	}
+	else
+	{
+				for(i=0; i<3; i++)
+			{
+				UART0_Transmit(ACK[i]);
+			}
+	}
 
 
-
-
-
-
-void I2Cinit(void)
-{
-	uint32_t baud_rate;
-	uint32_t divisor;
 	
-	SIM->SCGC5 |= SIM_SCGC5_PORTE_MASK;// | SIM_SCGC5_PORTC_MASK | SIM_SCGC5_PORTB_MASK;      //NA PORT
-	SIM->SCGC4 |= SIM_SCGC4_I2C0_MASK ;     //zegar na I2C
-	
-	
-	PORTE->PCR[24] |= PORT_PCR_MUX(2);						//  PINY DOLACZONE DO MODULU I2C 24- SCL , 25- SDA 
-  PORTE->PCR[25] |= PORT_PCR_MUX(2) ;
-	
-	//PORTE->PCR[24] |= PORT_PCR_PE_MASK |	PORT_PCR_PS_MASK;				//  
-  //PORTE->PCR[25] |= PORT_PCR_PE_MASK |	PORT_PCR_PS_MASK;
-	
-	
-	//I2C0 ->F = I2C_F_ICR_MASK;               //
-	//divisor = bus_clock/(baud_rate*16);   //dzielnik
-  //I2C0->C2 &= !I2C_C2_ADEXT_MASK;								
-
-	
-//	I2C0 -> F |= I2C_F_MULT(0x01);
-//	I2C0 -> F |= I2C_F_ICR(0x28);
-I2C0 -> F |= I2C_F_MULT(2);
-	
-	//I2C0->F = 0x24; //BAUDRATE 
-	//I2C0-> F = 0X1E;   // For 100 Khz
-	//I2C_F = 0x0E // For 400Khz
- // I2C_F = 0X02 // For 1Mhz respectively.
-	//I2C0->SLTH = I2C_SLTH_SSLT_MASK;                //set SCL  100k
-	//I2C0->SLTL = I2C_SLTL_SSLT_MASK;
-	
-	
-	I2C0 ->C1 |= I2C_C1_IICEN_MASK;    //ENABLE I2C
-  I2C0->C1 |= I2C_C1_IICIE_MASK; /*enable interrupt for timing signals*/	
-	
- // I2C0->C1 |= I2C_C1_TXAK_MASK;
-//	I2C0->C1 |= I2C_C1_MST_MASK;										
-	I2C0->A1 |= I2C_A1_AD(addressACCELEROMETER);   //default address of accelerator id 0x1D
-
 }
 
 
-
-void Transmite(uint8_t data)
-{
-		
-
-		I2C0 ->C1 |= I2C_C1_TX_MASK;         //ustawianie na wysylanie
-		I2C0->D = addressACCELEROMETER; /*send dev address */
-	 /* dodac ? wait for ack */
-		I2C0->D = addressRegisters; /*send write address */
-	 /* dodac ? wait for ack */
-    I2C0->D = data; /*send data */
-		/* dodac ? wait for ack */
+unsigned char I2C_AddressRead(unsigned char DEV_ADR/*, unsigned char REG_ADR*/)
+{   
+	unsigned char DATA_DUMMY =0;
+	unsigned char DATA =0;
+	uint32_t timeout = 99999;
+	//Set I2C in Transmit mode
+	I2C0->C1 |=I2C_C1_TX_MASK;
+	// Send Start bit
+	I2C0->C1 |=I2C_C1_MST_MASK;
+	// Sending Device Address Write Bit as the last Bit
+	I2C0->D = WRITE(DEV_ADR);
+	//Wait for Transfer to complete i.e. until IICIF Flag is set to 0
+	while((I2C0->S & I2C_S_IICIF_MASK) == 0)
+	{
+		timeout--;
+		if(timeout == 0)
+		{
+			return 255;
+		}
+	}
+	timeout = 99999;
+	//Clear IICIF Flag
+	I2C0->S |= I2C_S_IICIF_MASK;
+	//Waiting for Acknowledgement from slave
+	while ((I2C0->S & I2C_S_RXAK_MASK) != 0)
+	{
+		timeout--;
+		if(timeout == 0)
+		{
+			return 255;
+		}
+	}
+	
+	
+	I2C0->C1 &= (~I2C_C1_MST_MASK);
+	// Clear Transmit Nack by setting TXAK to 0
+	I2C0->C1 &= ~(I2C_C1_TXAK_MASK);
+	
+	
+			
+////	// Sending Register Address of Magnetometer that we want to read
+//	I2C0->D = 0x00;
+////	//Wait for Transfer to complete i.e. until IICIF Flag is set to 0
+//	while((I2C0->S & I2C_S_IICIF_MASK) == 0)
+//		{}
+////	//Clear IICIF Flag
+//	I2C0->S |= I2C_S_IICIF_MASK;
+////	//Waiting for Acknowledgement from slave
+//	while ((I2C0->S & I2C_S_RXAK_MASK) != 0)
+//		{}
+////	// Send the Repeated Start
+//	I2C0->C1 |= I2C_C1_RSTA_MASK;
+////	// Sending Device Address of the Magnetometer and a Read Bit as the last Bit
+//	I2C0->D = READ(DEV_ADR);
+////	//Sending NAK
+//	I2C0->C1 |= (I2C_C1_TXAK_MASK);
+////	//Wait for Transfer to complete i.e. until IICIF Flag is set to 0
+//    while((I2C0->S & I2C_S_IICIF_MASK) == 0)
+//		{}
+////    //Clear IICIF Flag
+//	I2C0->S|= I2C_S_IICIF_MASK;
+////	//Waiting for Acknowledgement from slave
+//	while ((I2C0->S & I2C_S_RXAK_MASK) != 0)
+//		{}
+////	//Set the I2C in Receiver Mode
+//	I2C0->C1 &= (~I2C_C1_TX_MASK);
+////	//Read Dummy Magnetometer Data
+//	DATA_DUMMY = I2C0->D;
+////	//Wait for Transfer to complete i.e. until IICIF Flag is set to 0
+//	while((I2C0->S & I2C_S_IICIF_MASK) == 0)
+//		{}
+////	//Clear IICIF Flag
+//	I2C0->S |= I2C_S_IICIF_MASK;
+////	//Send Stop Bit
+//	I2C0->C1 &= (~I2C_C1_MST_MASK);
+////	// Clear Transmit Nack by setting TXAK to 0
+//	I2C0->C1 &= ~(I2C_C1_TXAK_MASK);
+////	//Read Magnetometer Data
+//	DATA= I2C0->D;
+////	//delay to ensure all processes are completed before next process starts
+//	delay();
+//	//Return Data
+	return 0;
 }
 
-uint8_t Reading_single_Byte_from_Device(void)   //funkjca oparta na pdfie ARMa jak zadziala przerobic multiple na podawanie adresów
-{
-	uint16_t data =0;
-	volatile int d;
+unsigned char I2C_ReadSingle_Byte(unsigned char DEV_ADR, unsigned char REG_ADR)
+{   
+	unsigned char DATA_DUMMY =0;
+	unsigned char DATA =0;
+	uint32_t timeout = 99999;
+	//Set I2C in Transmit mode
+	I2C0->C1 |=I2C_C1_TX_MASK;
+	// Send Start bit
+	I2C0->C1 |=I2C_C1_MST_MASK;
+	// Sending Device Address Write Bit as the last Bit
+	I2C0->D = WRITE(DEV_ADR);
+	//Wait for Transfer to complete i.e. until IICIF Flag is set to 0
+	while((I2C0->S & I2C_S_IICIF_MASK) == 0)
+	{
+		timeout--;
+		if(timeout == 0)
+		{
+			return 255;
+		}
+	}
+	timeout = 99999;
+	//Clear IICIF Flag
+	I2C0->S |= I2C_S_IICIF_MASK;
+	//Waiting for Acknowledgement from slave
+	while ((I2C0->S & I2C_S_RXAK_MASK) != 0)
+	{
+		timeout--;
+		if(timeout == 0)
+		{
+			return 255;
+		}
+	}
 	
-	I2C_TRAN();       //set to transmit mode 
-	I2C_Start();       //send start 
-	I2C0->D=(addressACCELEROMETER);   //send dev address 
-	I2C_wait();                 //wait for completion 
-	I2C0->D = addressRegisters;      //send read address 
-	I2C_wait();                 //wait for completion 
-	I2C_RepeatedStart();             //repeated start 
-	I2C0->D = ((addressACCELEROMETER<<1)|0x1); //send dev address (read) 
-	I2C_wait();                 //wait for completion 
-	I2C_REC();                 //set to recieve mode 
-	NACK();                //set NACK after read 
-	data = I2C0->D;           //dummy read 
-  I2C_wait();           //wait for completion 
-  I2C_Stop();             //send stop 
-  data = I2C0->D;        //read data 
-	return data;
-
-}
-
-void Reading_Multiple_Bytes_set_up(void) //NA PODSTAWIE  pdfARMA
-{
-	I2C_TRAN();       //set to transmit mode 
-	I2C_Start();      //send start 
-	I2C0->D=addressACCELEROMETER;   //send dev address 
-	I2C_wait();                 //wait for completion 
-	I2C0->D = addressRegisters;      //send read address  // co to jest jaki adres tu podawac 
-	I2C_wait();                 //wait for completion 
-	I2C_RepeatedStart();             //repeated start 
-	I2C0->D = (addressACCELEROMETER|0x1); //send dev address (read) 
-	I2C_wait();                 //wait for completion 
-	I2C_REC();                 //set to recieve mode 
-}
-
- void Master_read_Slave_write_SET_up(void)
- {
-	I2C_TRAN();       //set to transmit mode 
-	I2C_Start();       //send start 
-	I2C0->D = (addressACCELEROMETER|0x0); //send dev address (read) 
-	//I2C_wait();                 //wait for completion
-	ACK();
-	I2C0->D = addressRegisters;      //send read address // co to jest jaki adres tu podawac 
-	//I2C_wait();                 //wait for completion 
-	ACK();
-	I2C_TRAN();       //set to transmit mode 
-	I2C_Start();       //send start 
 	
-
-	 
- }
- 
- 
- 
- /* -------------------------------------------------------------------
- -------------------------------------------------------------------------*/
- 
-
- /*
- unsigned char I2C_ReadRegister_uc (unsigned char u8Address, unsigned char u8Register ){    
-  
-	 unsigned char u8Data;    
-  unsigned char u8AddressW, u8AddressR;    
-  // shift ID in right possition     
-  u8AddressW = (u8Address << 1) | MWSR; // write address MASTER WRITES SLAVE READS      
-  u8AddressR = (u8Address << 1) | MRSW; // read address  MASTER READS SLAVE WRITES      
-  // send start signal 
-  I2C_TRAN();       //set to transmit mode 	 
-  I2C_Start(); 
-  // send ID with Write bit    
-  I2C_write_byte(u8AddressW);    
-  I2C_Wait();    
-  // send Register address    
-  I2C_write_byte(u8Register);    
-  I2C_Wait();    
-  // send repeated start to switch to read mode    
-  I2C_RepeatedStart();    
-  // re send device address with read bit    
-  I2C_write_byte(u8AddressR);    
-  I2C_Wait();    
-  // set in read mode    
-  I2C_EnterRxMode();    
-  u8Data = I2C_read_byte();    
-  // send stop signal so we only read 8 bits    
-  I2C_Stop();    
-  return u8Data;    
-}    
-/*  
-* Name: I2C_ReadRegister  
-* Requires: Device Address, Device Register address, Pointer for returned data  
-* Returns: nothing  
-* Description: Reads device register and puts it in pointer's variable  
-*/    
-
-/*
-void I2C_ReadRegister (unsigned char u8Address, unsigned char u8Register, unsigned char *u8Data ){    
-  // shift ID in right possition     
-  u8Address = (u8Address << 1) | MWSR; // write address MASTER WRITES SLAVE READS  
-  u8Address = (u8Address << 1) | MRSW; // read address  MASTER READS SLAVE WRITES  
-  // send start signal 
-	I2C_TRAN();       //set to transmit mode 	
-  I2C_Start();    
-  // send ID with W bit     
-  I2C_write_byte(u8Address);    
-  I2C_Wait();    
-  // send device register    
-  I2C_write_byte(u8Register);    
-  I2C_Wait();    
-  // repeated start for read mode    
-  I2C_RepeatedStart();    
-  // resend device address for reading    
-  I2C_write_byte(u8Address);    
-  I2C_Wait();     
-  I2C_EnterRxMode();    
-  // clear data register for reading    
-  *u8Data = I2C_read_byte();    
-  I2C_Wait();    
-  // send stop signal so we only read 8 bits    
-  I2C_Stop();      
-}    
-
-*/
-
-void ledInit(void){
+	I2C0->C1 &= (~I2C_C1_MST_MASK);
+	// Clear Transmit Nack by setting TXAK to 0
+	I2C0->C1 &= ~(I2C_C1_TXAK_MASK);
 	
-
-  int d=0; 
-	SIM->SCGC5 |=  SIM_SCGC5_PORTE_MASK; 	
-	PORTE->PCR[29] = PORT_PCR_MUX(1);    
-	FPTE->PDDR = 1UL<<29;
-	FPTE->PCOR = 1UL<<29;
-	for(d=0; d<1200000; d++);
-	FPTE->PSOR = 1UL<<29	;          
-	d=0;
-
-SIM->SCGC5 |=  SIM_SCGC5_PORTD_MASK; 	
-	PORTD->PCR[5] = PORT_PCR_MUX(1);    
-	FPTD->PDDR = 1UL<<5;
-	FPTD->PCOR = 1UL<<5;
-	for(d=0; d<1200000; d++);
-	FPTD->PSOR = 1UL<<5	;          
 	
+			
+//	// Sending Register Address of Magnetometer that we want to read
+	I2C0->D = REG_ADR;
+//	//Wait for Transfer to complete i.e. until IICIF Flag is set to 0
+	while((I2C0->S & I2C_S_IICIF_MASK) == 0)
+		{
+			timeout--;
+			if(timeout == 0)
+			{
+				return 255;
+			}
+		}
+			timeout = 99999;
+//	//Clear IICIF Flag
+	I2C0->S |= I2C_S_IICIF_MASK;
+//	//Waiting for Acknowledgement from slave
+	while ((I2C0->S & I2C_S_RXAK_MASK) != 0)
+		{
+			timeout--;
+				if(timeout == 0)
+				{
+					return 255;
+				}
+		}
+		timeout = 99999;
+//	// Send the Repeated Start
+	I2C0->C1 |= I2C_C1_RSTA_MASK;
+//	// Sending Device Address of the Magnetometer and a Read Bit as the last Bit
+	I2C0->D = READ(DEV_ADR);
+//	//Sending NAK
+	I2C0->C1 |= (I2C_C1_TXAK_MASK);
+//	//Wait for Transfer to complete i.e. until IICIF Flag is set to 0
+    while((I2C0->S & I2C_S_IICIF_MASK) == 0)
+		{
+		timeout--;
+			if(timeout == 0)
+			{
+				return 255;
+			}
+		}
+//    //Clear IICIF Flag
+	I2C0->S|= I2C_S_IICIF_MASK;
+//	//Waiting for Acknowledgement from slave
+	while ((I2C0->S & I2C_S_RXAK_MASK) != 0)
+		{
+			timeout--;
+				if(timeout == 0)
+				{
+					return 255;
+				}
+		}
+//	//Set the I2C in Receiver Mode
+	I2C0->C1 &= (~I2C_C1_TX_MASK);
+//	//Read Dummy Magnetometer Data
+	DATA_DUMMY = I2C0->D;
+//	//Wait for Transfer to complete i.e. until IICIF Flag is set to 0
+	while((I2C0->S & I2C_S_IICIF_MASK) == 0)
+		{}
+//	//Clear IICIF Flag
+	I2C0->S |= I2C_S_IICIF_MASK;
+//	//Send Stop Bit
+	I2C0->C1 &= (~I2C_C1_MST_MASK);
+//	// Clear Transmit Nack by setting TXAK to 0
+	I2C0->C1 &= ~(I2C_C1_TXAK_MASK);
+//	//Read Magnetometer Data
+	DATA= I2C0->D;
+//	//delay to ensure all processes are completed before next process starts
+	delay();
+	//Return Data
+	return DATA;
 }
